@@ -2,6 +2,8 @@
 #include <SPI.h>
 #include "Adafruit_GFX.h"
 #include "Adafruit_RA8875.h"
+#include "Utils.h"
+#include "ImageManager.h"
 
 #define RA8875_INT 46
 #define RA8875_CS 10
@@ -10,109 +12,61 @@
 Adafruit_RA8875 tft = Adafruit_RA8875(RA8875_CS, RA8875_RESET);
 uint16_t tx, ty;
 
-int splitString(String str, char delimiter, String resultArray[]);
+void waitForConnection();
 
-struct Position
-{
-    int xpos;
-    int ypos;
-};
-
-// Vordefinierte Positionen (1–15)
-const Position positions[] = {
-    {20, 14},   // Position 1
-    {112, 14},  // Position 2
-    {204, 14},  // Position 3
-    {296, 14},  // Position 4
-    {388, 14},  // Position 5
-    {20, 100},  // Position 6
-    {112, 100}, // Position 7
-    {204, 100}, // Position 8
-    {296, 100}, // Position 9
-    {388, 100}, // Position 10
-    {20, 186},  // Position 11
-    {112, 186}, // Position 12
-    {204, 186}, // Position 13
-    {296, 186}, // Position 14
-    {388, 186}  // Position 15
-};
+bool isConnected = false;
+String version = "1.0.0-alpha";
 
 void setup()
 {
-    Serial.begin(4000000);
-    Serial.println("RA8875 start");
+    Serial.begin(6000000);
 
     if (!tft.begin(RA8875_480x272))
-    {
-        Serial.println("RA8875 Not Found!");
-        while (1)
-            ;
-    }
-
-    Serial.println("Found RA8875");
+        return;
 
     tft.displayOn(true);
-    tft.GPIOX(true);                              // Enable TFT - display enable tied to GPIOX
-    tft.PWM1config(true, RA8875_PWM_CLK_DIV1024); // PWM output for backlight
+    tft.GPIOX(true);
+    tft.PWM1config(true, RA8875_PWM_CLK_DIV1024);
     tft.PWM1out(255);
 
-    tft.fillScreen(RA8875_WHITE);
+    tft.fillScreen(RA8875_BLACK);
 }
 
 void loop()
 {
-    if (Serial.available())
+    if (!Serial.available())
+        return;
+
+    if (!isConnected)
+        waitForConnection();
+
+    String input = Serial.readStringUntil('\n');
+    input.trim();
+
+    if (Utils::contains(input, "SMARTDECK:DISCONNECT"))
     {
-        String input = Serial.readStringUntil('\n');
-        input.trim();
-
-        if (input.indexOf("SendingImage") >= 0)
-        {
-            String splitInput[3];
-            splitString(input, ':', splitInput);
-
-            String dimensions[2];
-            splitString(splitInput[1], 'x', dimensions);
-
-            int pos = splitInput[2].toInt();
-
-            int width = dimensions[0].toInt();
-            int height = dimensions[1].toInt();
-
-            int totalPixels = width * height;
-            uint16_t *values = new uint16_t[totalPixels];
-
-            // Lese die gesamten Bilddaten auf einmal ein
-            Serial.readBytes((byte *)values, totalPixels * sizeof(uint16_t));
-
-            // Zeichne das Bild zeilenweise
-            for (int y = 0; y < height; y++)
-            {
-                tft.drawPixels(values + y * width, width, positions[pos].xpos, y + positions[pos].ypos);
-            }
-            delete[] values;
-        }
+        isConnected = false;
+    }
+    else if (Utils::contains(input, "SMARTDECK:IMAGE_TRANSFER"))
+    {
+        ImageManager::startTransfer(input, tft);
+    }
+    else if (Utils::contains(input, "SMARTDECK:MASS_IMAGE_TRANSFER"))
+    {
+        ImageManager::startMassTransfer(input, tft);
     }
 }
 
-int splitString(String str, char delimiter, String resultArray[])
+void waitForConnection()
 {
-    int index = 0;
-    int startIndex = 0;
-
-    for (int i = 0; i < str.length(); i++)
+    while (1)
     {
-        if (str[i] == delimiter)
+        String receivedMessage = Serial.readStringUntil('\n');
+        if (receivedMessage.equals("SMARTDECK:PING"))
         {
-            resultArray[index++] = str.substring(startIndex, i);
-            startIndex = i + 1;
-            if (index >= 3)
-            {
-                break;
-            }
+            Serial.println("SMARTDECK:READY;VER:" + version);
+            isConnected = true;
+            return;
         }
     }
-
-    resultArray[index++] = str.substring(startIndex);
-    return index;
 }
