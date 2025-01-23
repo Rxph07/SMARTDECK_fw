@@ -1,30 +1,5 @@
 #include "ImageManager.h"
 
-struct Position
-{
-    int xpos;
-    int ypos;
-};
-
-const Position positions[] = {
-    {20, 14},
-    {112, 14},
-    {204, 14},
-    {296, 14},
-    {388, 14},
-    {20, 100},
-    {112, 100},
-    {204, 100},
-    {296, 100},
-    {388, 100},
-    {20, 186},
-    {112, 186},
-    {204, 186},
-    {296, 186},
-    {388, 186},
-    {0, 0},
-};
-
 void ImageManager::startTransfer(String input, Adafruit_RA8875 &tft)
 {
     // Split header into 4 parts
@@ -61,7 +36,7 @@ void ImageManager::startTransfer(String input, Adafruit_RA8875 &tft)
     }
     else
     {
-        // Transmission error
+        Serial.println("SMARTDECK:NACK");
     }
 
     delete[] values;
@@ -111,7 +86,7 @@ void ImageManager::startMassTransfer(String input, Adafruit_RA8875 &tft)
     }
     else
     {
-        // Transmission error
+        Serial.println("SMARTDECK:NACK");
     }
 
     delete[] values;
